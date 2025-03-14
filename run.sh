@@ -1,0 +1,1 @@
+FLASK_APP=proxy.py FLASK_DEBUG=1 flask run --port 3000
