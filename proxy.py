@@ -10,6 +10,7 @@ import traceback
 
 from openai import OpenAI
 import httpx
+import certifi
 
 # Configure logging
 logging.basicConfig(
@@ -18,8 +19,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-ssl_context = httpx.create_ssl_context(verify=False)
-http_client = httpx.Client(verify=False)
+# Get the current directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+custom_cert_path = os.path.join(current_dir, "russian_trusted_root_ca.cer")
+
+# Check if the custom certificate file exists
+if not os.path.exists(custom_cert_path):
+    raise FileNotFoundError(f"Custom certificate file not found: {custom_cert_path}")
+
+# Create a custom certificate bundle by combining system certs with our custom cert
+# This approach is more secure than disabling SSL verification entirely.
+# We're adding a specific trusted certificate to the verification chain
+# rather than accepting any certificate (which would be vulnerable to MITM attacks).
+custom_ca_bundle = certifi.where()
+with open(custom_ca_bundle, 'rb') as ca_bundle:
+    ca_bundle_content = ca_bundle.read()
+
+with open(custom_cert_path, 'rb') as custom_cert:
+    custom_cert_content = custom_cert.read()
+
+# Create a temporary combined cert file
+combined_cert_path = os.path.join(current_dir, "combined_certs.pem")
+with open(combined_cert_path, 'wb') as combined_cert:
+    combined_cert.write(ca_bundle_content)
+    combined_cert.write(b'\n')
+    combined_cert.write(custom_cert_content)
+
+# Use the combined cert bundle for SSL verification
+ssl_context = httpx.create_ssl_context(verify=combined_cert_path)
+http_client = httpx.Client(verify=combined_cert_path)
 
 class TokenManager:
     def __init__(self, master_token):
@@ -53,7 +81,7 @@ class TokenManager:
                 'scope': 'GIGACHAT_API_PERS'
             }
 
-            # Make request to OAuth endpoint
+            # Make request to OAuth endpoint using our configured http_client with proper SSL verification
             response = http_client.post(
                 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth',
                 headers=headers,
@@ -366,6 +394,194 @@ def non_stream_response(request_data):
         logger.error(traceback.format_exc())
         raise
 
+@app.route('/v1/embeddings', methods=['POST'])
+def embeddings():
+    """Handle embeddings request"""
+    try:
+        # Log the raw request for debugging
+        raw_request = request.get_data(as_text=True)
+        logger.debug(f"Raw embeddings request: {raw_request}")
+
+        request_data = request.json
+        if not request_data:
+            return jsonify({
+                "error": {
+                    "message": "Invalid JSON in request body",
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": "invalid_request_error"
+                }
+            }), 400
+
+        logger.info(f"Received embeddings request: {json.dumps(request_data)}")
+
+        # Check if input is present
+        if 'input' not in request_data or not request_data['input']:
+            return jsonify({
+                "error": {
+                    "message": "Input is required",
+                    "type": "invalid_request_error",
+                    "param": "input",
+                    "code": "invalid_request_error"
+                }
+            }), 400
+
+        # Extract input text(s)
+        input_texts = request_data['input']
+        if isinstance(input_texts, str):
+            input_texts = [input_texts]  # Convert single string to list
+
+        # Extract model name (default to GigaChat-Embeddings)
+        model = request_data.get('model', 'GigaChat-Embeddings')
+
+        # Prepare parameters for GigaChat API
+        params = {
+            "model": model,
+            "input": input_texts
+        }
+
+        try:
+            # Call GigaChat API for embeddings
+            response = client.embeddings.create(**params)
+
+            # Get the raw response data
+            response_data = response.model_dump()
+            logger.debug(f"Raw GigaChat embeddings response: {json.dumps(response_data)}")
+
+            # Format the response to match OpenAI API format
+            formatted_response = {
+                "object": "list",
+                "data": [],
+                "model": model,
+                "usage": {
+                    "prompt_tokens": response_data.get("usage", {}).get("prompt_tokens", 0),
+                    "total_tokens": response_data.get("usage", {}).get("total_tokens", 0)
+                }
+            }
+
+            # Extract embeddings from the response
+            if "data" in response_data:
+                formatted_response["data"] = response_data["data"]
+            else:
+                # Fallback if the response structure is different
+                for i, embedding in enumerate(response_data.get("embeddings", [])):
+                    formatted_response["data"].append({
+                        "object": "embedding",
+                        "embedding": embedding,
+                        "index": i
+                    })
+
+            logger.debug(f"Formatted embeddings response: {json.dumps(formatted_response)}")
+            return jsonify(formatted_response)
+
+        except Exception as e:
+            logger.error(f"Error calling GigaChat embeddings API: {str(e)}", exc_info=True)
+            return jsonify({
+                "error": {
+                    "message": f"Error calling GigaChat embeddings API: {str(e)}",
+                    "type": "api_error",
+                    "param": None,
+                    "code": "api_error"
+                }
+            }), 502
+
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error in embeddings: {str(e)}", exc_info=True)
+        return jsonify({
+            "error": {
+                "message": f"Invalid JSON: {str(e)}",
+                "type": "invalid_request_error",
+                "param": None,
+                "code": "invalid_request_error"
+            }
+        }), 400
+    except Exception as e:
+        logger.error(f"Unexpected error in embeddings: {str(e)}", exc_info=True)
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": {
+                "message": f"Internal server error: {str(e)}",
+                "type": "server_error",
+                "param": None,
+                "code": "server_error"
+            }
+        }), 500
+
+@app.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
+def general_proxy(path):
+    """General proxy endpoint that forwards any request to the GigaChat API"""
+    try:
+        # Log the incoming request
+        logger.info(f"Received request for path: {path}, method: {request.method}")
+        raw_request = request.get_data(as_text=True)
+        if raw_request:
+            logger.debug(f"Raw request data: {raw_request}")
+
+        # Construct the target URL
+        target_url = f"https://gigachat.devices.sberbank.ru/api/{path}"
+        logger.info(f"Forwarding to: {target_url}")
+
+        # Get the headers from the original request
+        headers = {key: value for key, value in request.headers.items()
+                  if key.lower() not in ['host', 'content-length']}
+
+        # Add authorization header with the token
+        headers['Authorization'] = f"Bearer {token_manager.get_valid_token()}"
+
+        # Get the request data
+        data = request.get_data()
+
+        # Forward the request to the GigaChat API using our http_client with proper SSL verification
+        response = http_client.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            content=data,
+            params=request.args
+        )
+
+        # Log the response status
+        logger.info(f"GigaChat API responded with status: {response.status_code}")
+
+        # Create a Flask response with the same content and status code
+        flask_response = Response(
+            response=response.content,
+            status=response.status_code,
+            headers=dict(response.headers)
+        )
+
+        return flask_response
+
+    except Exception as e:
+        logger.error(f"Error in general proxy: {str(e)}", exc_info=True)
+        logger.error(traceback.format_exc())
+        return jsonify({
+            "error": {
+                "message": f"Error proxying request: {str(e)}",
+                "type": "server_error",
+                "code": "server_error"
+            }
+        }), 500
+
+# Special case for /api/version endpoint
+@app.route('/api/version', methods=['GET'])
+def api_version():
+    """Return API version information"""
+    return jsonify({
+        "version": "1.0.0",
+        "name": "GigaChat API Proxy",
+        "description": "Proxy server for GigaChat API"
+    })
+
 if __name__ == '__main__':
-    logger.info("Starting proxy server on port 3000")
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    try:
+        logger.info("Starting proxy server on port 3000")
+        app.run(host='0.0.0.0', port=3000, debug=True)
+    finally:
+        # Clean up the temporary combined certificate file
+        if os.path.exists(combined_cert_path):
+            try:
+                os.remove(combined_cert_path)
+                logger.info(f"Removed temporary certificate file: {combined_cert_path}")
+            except Exception as e:
+                logger.error(f"Failed to remove temporary certificate file: {str(e)}")
