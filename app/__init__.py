@@ -9,11 +9,13 @@ def create_app():
     from app.api.chat import chat_bp
     from app.api.embeddings import embeddings_bp
     from app.api.general import general_bp
+    from app.api.health import health_bp
 
     app.register_blueprint(models_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(embeddings_bp)
     app.register_blueprint(general_bp)
+    app.register_blueprint(health_bp)
 
     # Register error handlers
     from app.utils.error_handlers import register_error_handlers

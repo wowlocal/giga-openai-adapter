@@ -61,6 +61,7 @@ A modular Flask application that serves as a proxy for the GigaChat API, providi
 - `/v1/models` - List available models
 - `/v1/chat/completions` - Chat completions
 - `/v1/embeddings` - Embeddings
+- `/health` - Health check endpoint to verify the service is running
 - `/<path:path>` - General proxy for other GigaChat API endpoints
 
 ## Requirements
