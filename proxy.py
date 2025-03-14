@@ -18,18 +18,20 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
 # Get the current directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
 custom_cert_path = os.path.join(current_dir, "russian_trusted_root_ca.cer")
+proxyman_cert_path = os.path.join(current_dir, "proxyman.pem")
 
-# Check if the custom certificate file exists
+# Check if the custom certificate files exist
 if not os.path.exists(custom_cert_path):
     raise FileNotFoundError(f"Custom certificate file not found: {custom_cert_path}")
+if not os.path.exists(proxyman_cert_path):
+    raise FileNotFoundError(f"Proxyman certificate file not found: {proxyman_cert_path}")
 
-# Create a custom certificate bundle by combining system certs with our custom cert
+# Create a custom certificate bundle by combining system certs with our custom certs
 # This approach is more secure than disabling SSL verification entirely.
-# We're adding a specific trusted certificate to the verification chain
+# We're adding specific trusted certificates to the verification chain
 # rather than accepting any certificate (which would be vulnerable to MITM attacks).
 custom_ca_bundle = certifi.where()
 with open(custom_ca_bundle, 'rb') as ca_bundle:
@@ -38,12 +40,17 @@ with open(custom_ca_bundle, 'rb') as ca_bundle:
 with open(custom_cert_path, 'rb') as custom_cert:
     custom_cert_content = custom_cert.read()
 
+with open(proxyman_cert_path, 'rb') as proxyman_cert:
+    proxyman_cert_content = proxyman_cert.read()
+
 # Create a temporary combined cert file
 combined_cert_path = os.path.join(current_dir, "combined_certs.pem")
 with open(combined_cert_path, 'wb') as combined_cert:
     combined_cert.write(ca_bundle_content)
     combined_cert.write(b'\n')
     combined_cert.write(custom_cert_content)
+    combined_cert.write(b'\n')
+    combined_cert.write(proxyman_cert_content)
 
 # Use the combined cert bundle for SSL verification
 ssl_context = httpx.create_ssl_context(verify=combined_cert_path)
