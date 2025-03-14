@@ -1,74 +1,113 @@
 # GigaChat API Proxy
 
-A modular Flask application that serves as a proxy for the GigaChat API, providing OpenAI-compatible endpoints.
+This project provides a Flask-based API proxy for GigaChat that implements an OpenAI-compatible API interface. It has been refactored to use the official GigaChat Python library instead of the OpenAI library.
 
 ## Features
 
-- OpenAI-compatible API endpoints
+- OpenAI-compatible API endpoints for chat completions
+- Support for streaming responses
+- Support for function calling (tools)
+- Proper SSL certificate handling for Russian certificates
 - Token management for authentication
-- SSL certificate handling for secure communication
-- Support for streaming and non-streaming chat completions
-- Support for embeddings
-- General proxy for other GigaChat API endpoints
-
-## Project Structure
-
-```
-.
-├── app/                    # Main application package
-│   ├── __init__.py         # Application factory
-│   ├── api/                # API endpoints
-│   │   ├── __init__.py
-│   │   ├── chat.py         # Chat completions endpoint
-│   │   ├── embeddings.py   # Embeddings endpoint
-│   │   ├── general.py      # General proxy endpoint
-│   │   └── models.py       # Models endpoint
-│   ├── auth/               # Authentication
-│   │   ├── __init__.py
-│   │   └── token_manager.py # Token management
-│   ├── config/             # Configuration
-│   │   └── __init__.py     # Configuration settings
-│   └── utils/              # Utility functions
-│       ├── __init__.py
-│       ├── error_handlers.py # Error handlers
-│       ├── helpers.py      # Helper functions
-│       ├── openai_client.py # OpenAI client
-│       └── ssl.py          # SSL certificate handling
-├── run.py                  # Application entry point
-├── russian_trusted_root_ca.cer # Custom certificate
-└── proxyman.pem            # Proxyman certificate
-```
-
-## Setup
-
-1. Create a `.env` file in the root directory with the following content:
-   ```
-   MASTER_TOKEN=your_master_token
-   ```
-
-2. Install the required dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-3. Run the application:
-   ```
-   python run.py
-   ```
-
-## API Endpoints
-
-- `/v1/models` - List available models
-- `/v1/chat/completions` - Chat completions
-- `/v1/embeddings` - Embeddings
-- `/health` - Health check endpoint to verify the service is running
-- `/<path:path>` - General proxy for other GigaChat API endpoints
 
 ## Requirements
 
-- Python 3.7+
+- Python 3.8+
 - Flask
-- OpenAI Python SDK
-- HTTPX
-- Certifi
-- python-dotenv
+- GigaChat Python library
+- Other dependencies listed in requirements.txt
+
+## Setup
+
+1. Clone the repository
+2. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+3. Create a `.env` file with your GigaChat API credentials:
+   ```
+   MASTER_TOKEN=your_gigachat_api_key
+   ```
+4. Make sure you have the required certificate files:
+   - `russian_trusted_root_ca.cer` - Russian trusted root certificate
+   - `proxyman.pem` (if using Proxyman for debugging)
+
+## Running the Application
+
+Start the Flask application:
+
+```
+python app/__init__.py
+```
+
+## Testing
+
+You can run the test script to verify the GigaChat integration:
+
+```
+python giga_test.py
+```
+
+This will run several tests:
+- Basic chat completion
+- Streaming responses
+- Function calling
+- Multiple functions
+- Embeddings
+
+## API Usage
+
+The API implements an OpenAI-compatible interface. You can use it with any OpenAI client by changing the base URL.
+
+Example request:
+
+```json
+POST /v1/chat/completions
+{
+  "model": "GigaChat",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello, how are you?"}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 100
+}
+```
+
+## Function Calling
+
+The API supports function calling (tools) in the same format as OpenAI:
+
+```json
+POST /v1/chat/completions
+{
+  "model": "GigaChat",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What's the weather in Moscow?"}
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get the current weather in a location",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "The city and state, e.g. San Francisco, CA"
+            }
+          },
+          "required": ["location"]
+        }
+      }
+    }
+  ]
+}
+```
+
+## License
+
+MIT

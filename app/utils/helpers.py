@@ -26,6 +26,16 @@ def extract_parameters(request_data, default_model="GigaChat"):
             else:
                 params[param] = request_data[param]
 
+    # Add tools if they exist in the request
+    if "tools" in request_data:
+        logger.warning(f"\033[33m[PROXY] Processing previously ignored 'tools' parameter: {json.dumps(request_data['tools'])}\033[0m")
+        params["tools"] = request_data["tools"]
+
+    # Add tool_choice if it exists in the request
+    if "tool_choice" in request_data:
+        logger.warning(f"\033[33m[PROXY] Processing previously ignored 'tool_choice' parameter: {json.dumps(request_data['tool_choice'])}\033[0m")
+        params["tool_choice"] = request_data["tool_choice"]
+
     logger.debug(f"Extracted parameters: {json.dumps(params)}")
     return params
 

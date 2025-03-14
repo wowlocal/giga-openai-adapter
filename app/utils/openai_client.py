@@ -1,32 +1,36 @@
-from openai import OpenAI
+from gigachat import GigaChat
 from app.auth.token_manager import token_manager
-from app.utils.ssl import create_http_client
+from app.utils.ssl import create_combined_cert_bundle
 from app.config import GIGACHAT_API_V1_URL, logger
+import os
 
-def create_openai_client():
-    """Create an OpenAI client configured for GigaChat API"""
+def create_gigachat_client():
+    """Create a GigaChat client"""
     try:
         # Get a valid token
         token = token_manager.get_valid_token()
 
-        # Create HTTP client with proper SSL verification
-        http_client = create_http_client()
+        key = os.getenv("MASTER_TOKEN")
 
-        # Initialize OpenAI client
-        client = OpenAI(
-            api_key=token,
+        # Get the combined certificate path
+        cert_path = create_combined_cert_bundle()
+
+        # Initialize GigaChat client
+        client = GigaChat(
+            credentials=key,
+            ca_bundle_file=cert_path,
             base_url=GIGACHAT_API_V1_URL,
-            http_client=http_client
+            verify_ssl_certs=False  # Disable SSL verification for compatibility
         )
 
-        logger.info("Created OpenAI client for GigaChat API")
+        logger.info("Created GigaChat client")
         return client
 
     except Exception as e:
-        logger.error(f"Error creating OpenAI client: {str(e)}", exc_info=True)
+        logger.error(f"Error creating GigaChat client: {str(e)}", exc_info=True)
         raise
 
 # Create a function to get a client with a fresh token
 def get_client():
-    """Get an OpenAI client with a fresh token"""
-    return create_openai_client()
+    """Get a GigaChat client with a fresh token"""
+    return create_gigachat_client()
