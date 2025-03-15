@@ -17,6 +17,11 @@ def validate_finish_reason(finish_reason):
     expected_values = ["stop", "length", "tool_calls", "content_filter", None]
     if finish_reason not in expected_values:
         logger.warning(f"[PROXY] Unexpected finish_reason value: '{finish_reason}'. Expected one of: {expected_values}")
+        # Special case for blacklist finish reason
+        if finish_reason == "blacklist":
+            logger.info("[PROXY] Converting 'blacklist' finish_reason to 'content_filter'")
+            return "content_filter"
+        return "stop"
     return finish_reason
 
 

@@ -13,7 +13,7 @@ class ColorFormatter(logging.Formatter):
     # ANSI color codes
     COLORS = {
         'DEBUG': '\033[94m',  # Blue
-        'INFO': '\033[92m',   # Green
+        'INFO': '',           # Normal (no color)
         'WARNING': '\033[93m', # Yellow
         'ERROR': '\033[91m',  # Red
         'CRITICAL': '\033[91m\033[1m',  # Bold Red
