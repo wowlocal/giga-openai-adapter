@@ -122,8 +122,10 @@ def stream_response(request_data):
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
+            # Create a queue to communicate between async and sync worlds
+            queue = asyncio.Queue()
+
             async def process_stream():
-                chunks_collected = []
                 try:
                     async for chunk in client.astream(chat):
                         logger.debug(f"[PROXY] Raw chunk from GigaChat: {chunk}")
@@ -136,22 +138,44 @@ def stream_response(request_data):
                             tool_calls
                         )
                         logger.debug(f"[PROXY] Formatted chunk: {formatted_chunk}")
-                        chunks_collected.append(f"data: {json.dumps(formatted_chunk)}\n\n")
+                        await queue.put(f"data: {json.dumps(formatted_chunk)}\n\n")
+                    # Signal that we're done
+                    await queue.put(None)
+                except Exception as e:
+                    logger.error(f"Error in async stream processing: {str(e)}", exc_info=True)
+                    await queue.put(error_stream_chunk(str(e)))
+                    await queue.put(None)
                 finally:
                     await client.aclose()
-                return chunks_collected
 
-            chunks = loop.run_until_complete(process_stream())
-            loop.close()
+            # Start the async task
+            task = loop.create_task(process_stream())
 
-            # Yield all collected chunks with a delay between them
+            # Process chunks as they arrive
             import time
-            for chunk in chunks:
-                yield chunk
-                # Add a small delay between chunks to control streaming rate if DEBUG_STREAM_DELAY is enabled
-                if DEBUG_STREAM_DELAY > 0:
-                    time.sleep(DEBUG_STREAM_DELAY)
-                    logger.debug(f"Sent chunk with delay of {DEBUG_STREAM_DELAY}s")
+            while True:
+                try:
+                    # Get the next chunk from the queue with a timeout
+                    chunk = loop.run_until_complete(asyncio.wait_for(queue.get(), timeout=30.0))
+                    if chunk is None:  # End of stream
+                        break
+                    yield chunk
+                    # Add a small delay between chunks if DEBUG_STREAM_DELAY is enabled
+                    if DEBUG_STREAM_DELAY > 0:
+                        time.sleep(DEBUG_STREAM_DELAY)
+                        logger.debug(f"Sent chunk with delay of {DEBUG_STREAM_DELAY}s")
+                except asyncio.TimeoutError:
+                    logger.warning("Timeout waiting for next chunk, ending stream")
+                    break
+                except Exception as e:
+                    logger.error(f"Error processing chunk: {str(e)}", exc_info=True)
+                    yield error_stream_chunk(str(e))
+                    break
+
+            # Clean up
+            if not task.done():
+                task.cancel()
+            loop.close()
 
             # Send the final [DONE] message
             yield "data: [DONE]\n\n"
