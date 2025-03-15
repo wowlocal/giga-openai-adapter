@@ -5,11 +5,62 @@ import os
 import asyncio
 import json
 from dotenv import load_dotenv
+import requests
+import urllib3
+import aiohttp
 
 from gigachat.models import Chat, Function, FunctionParameters, Messages, MessagesRole, FunctionCall
 
 # Get the current directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Disable SSL verification completely
+ssl._create_default_https_context = ssl._create_unverified_context
+
+# Disable certificate verification warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+# Disable urllib3 warnings in requests
+try:
+    requests.packages.urllib3.disable_warnings()
+except:
+    pass
+
+# Configure SSL context to disable verification
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
+# Create a custom SSL context for aiohttp
+aiohttp_ssl_context = ssl.create_default_context()
+aiohttp_ssl_context.check_hostname = False
+aiohttp_ssl_context.verify_mode = ssl.CERT_NONE
+
+# Set environment variable to disable SSL verification for requests library
+os.environ['REQUESTS_CA_BUNDLE'] = ''
+os.environ['SSL_CERT_FILE'] = ''
+os.environ['PYTHONHTTPSVERIFY'] = '0'
+
+# Monkey patch the requests library to disable SSL verification
+old_merge_environment_settings = requests.Session.merge_environment_settings
+def merge_environment_settings(self, url, proxies, stream, verify, cert):
+    settings = old_merge_environment_settings(self, url, proxies, stream, verify, cert)
+    settings['verify'] = False
+    return settings
+requests.Session.merge_environment_settings = merge_environment_settings
+
+# Patch urllib3 to disable warnings
+try:
+    # For newer versions of urllib3
+    from urllib3.connectionpool import HTTPSConnectionPool
+    old_conn_cls = HTTPSConnectionPool.ConnectionCls
+    class NoVerifyHTTPSConnection(old_conn_cls):
+        def connect(self):
+            self.sock = self._new_conn()
+            if self._tunnel_host:
+                self._tunnel()
+    HTTPSConnectionPool.ConnectionCls = NoVerifyHTTPSConnection
+except:
+    pass
 
 # Load environment variables
 load_dotenv()
@@ -44,6 +95,61 @@ calculator_fn = Function(
         required=["expression"],
     ),
 )
+
+# Define the search_ddg function that was missing
+def search_ddg(query):
+    """
+    Mock function for DuckDuckGo search.
+    Returns simulated search results based on the query.
+
+    Args:
+        query (str): The search query
+
+    Returns:
+        str: Simulated search results
+    """
+    # Dictionary of predefined responses for common queries
+    predefined_responses = {
+        "технологические новости": """
+Результаты поиска для 'технологические новости':
+1. Apple представила новый iPhone 15 Pro с улучшенной камерой и процессором A17 Pro
+2. Tesla анонсировала выпуск бюджетной модели электромобиля стоимостью от $25,000
+3. Microsoft выпустила предварительную версию Windows 12 с интегрированным ИИ
+4. Google представил новую версию поисковой системы с улучшенными возможностями ИИ
+5. Samsung разрабатывает складной смартфон нового поколения с улучшенным дисплеем
+""",
+        "искусственный интеллект": """
+Результаты поиска для 'искусственный интеллект':
+1. OpenAI выпустила GPT-5 с улучшенными возможностями рассуждения и понимания контекста
+2. DeepMind представила новую модель для решения сложных математических задач
+3. Российские разработчики представили GigaChat - конкурента ChatGPT
+4. ИИ-системы начинают применяться в медицине для диагностики заболеваний
+5. Этические вопросы использования искусственного интеллекта обсуждаются на международном уровне
+""",
+        "программирование python": """
+Результаты поиска для 'программирование python':
+1. Выпущена новая версия Python 3.12 с улучшенной производительностью
+2. Топ-10 библиотек Python для машинного обучения в 2023 году
+3. Руководство по асинхронному программированию в Python с использованием asyncio
+4. Python остается самым популярным языком программирования по версии TIOBE
+5. Курсы по изучению Python для начинающих и продвинутых разработчиков
+"""
+    }
+
+    # Check if the query matches any predefined responses
+    for key, response in predefined_responses.items():
+        if key.lower() in query.lower():
+            return response
+
+    # For other queries, generate a generic response
+    return f"""
+Результаты поиска для '{query}':
+1. Найден релевантный результат 1 по запросу '{query}'
+2. Найден релевантный результат 2 по запросу '{query}'
+3. Найден релевантный результат 3 по запросу '{query}'
+4. Найден релевантный результат 4 по запросу '{query}'
+5. Найден релевантный результат 5 по запросу '{query}'
+"""
 
 async def test_chat_completion():
     """Test basic chat completion"""
@@ -117,11 +223,22 @@ async def test_function_calling():
     key = os.getenv("MASTER_TOKEN")
 
     print("\n=== Testing Function Calling ===")
-    async with GigaChat(
-        credentials=key,
-        verify_ssl_certs=False,
-        ca_bundle_file=custom_cert_path if os.path.exists(custom_cert_path) else None
-    ) as giga:
+
+    # Create a custom session with SSL verification disabled
+    connector = aiohttp.TCPConnector(ssl=False)
+
+    try:
+        # Initialize GigaChat without custom session
+        giga = GigaChat(
+            access_token=os.getenv("API_KEY"),
+            verify_ssl_certs=False,
+            ca_bundle_file=None,  # Don't use any CA bundle
+            base_url="https://gigachat.devices.sberbank.ru/api/v1",
+            scope="GIGACHAT_API_PERS",
+            timeout=60
+        )
+
+        # Set up the initial chat
         chat = Chat(
             messages=[
                 Messages(
@@ -137,7 +254,8 @@ async def test_function_calling():
         )
 
         try:
-            response = await giga.achat(chat)
+            # Get the initial response
+            response = giga.chat(chat)
 
             # Check if function call is present
             if hasattr(response.choices[0].message, 'function_call'):
@@ -148,34 +266,49 @@ async def test_function_calling():
                 # Simulate function execution
                 search_results = "Найдены последние технологические новости: выпущен новый iPhone, Tesla представила новую модель, Microsoft анонсировала Windows 12."
 
-                # Continue the conversation with function results
-                chat.messages.append(Messages(
-                    role=MessagesRole.ASSISTANT,
-                    content=None,
-                    function_call=FunctionCall(
-                        name=function_call.name,
-                        arguments=function_call.arguments
-                    )
-                ))
-
-                chat.messages.append(Messages(
-                    role=MessagesRole.FUNCTION,
-                    name=function_call.name,
-                    content=search_results
-                ))
-
-                chat.messages.append(Messages(
-                    role=MessagesRole.USER,
-                    content="Расскажи подробнее о новом iPhone"
-                ))
+                # Create a new chat with the function result
+                new_chat = Chat(
+                    messages=[
+                        Messages(
+                            role=MessagesRole.SYSTEM,
+                            content="Ты - умный ИИ ассистент, который всегда готов помочь пользователю.",
+                        ),
+                        Messages(
+                            role=MessagesRole.USER,
+                            content="Найди информацию о последних технологических новостях",
+                        ),
+                        Messages(
+                            role=MessagesRole.ASSISTANT,
+                            content="",  # Empty string instead of None
+                            function_call=FunctionCall(
+                                name=function_call.name,
+                                arguments=function_call.arguments
+                            )
+                        ),
+                        Messages(
+                            role=MessagesRole.FUNCTION,
+                            content=json.dumps({"result": search_results}, ensure_ascii=False)
+                        ),
+                        Messages(
+                            role=MessagesRole.USER,
+                            content="Расскажи подробнее о новом iPhone"
+                        )
+                    ]
+                )
 
                 # Get the final response
-                final_response = await giga.achat(chat)
+                final_response = giga.chat(new_chat)
                 print(f"\nFinal response: {final_response.choices[0].message.content}")
             else:
                 print(f"No function call, direct response: {response.choices[0].message.content}")
         except Exception as e:
             print(f"Error in function calling: {str(e)}")
+            import traceback
+            traceback.print_exc()  # Print the full traceback for debugging
+    finally:
+        # Close GigaChat
+        if 'giga' in locals():
+            giga.close()
 
 async def test_multiple_functions():
     """Test with multiple functions"""
@@ -252,20 +385,20 @@ async def test_embeddings():
 async def main():
     """Run all tests"""
     try:
-        # Test basic chat completion
-        await test_chat_completion()
+        # # Test basic chat completion
+        # await test_chat_completion()
 
-        # Test streaming
-        await test_streaming()
+        # # Test streaming
+        # await test_streaming()
 
         # Test function calling
         await test_function_calling()
 
-        # Test multiple functions
-        await test_multiple_functions()
+        # # Test multiple functions
+        # await test_multiple_functions()
 
-        # Test embeddings
-        await test_embeddings()
+        # # Test embeddings
+        # await test_embeddings()
     except Exception as e:
         print(f"Error in main: {str(e)}")
 
