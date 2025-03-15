@@ -52,7 +52,7 @@ def convert_to_gigachat_messages(openai_messages):
                 function_data = tool_call.get('function', {})
 
                 # Set content to None when there's a function call
-                gigachat_message.content = None
+                gigachat_message.content = ""
 
                 logger.debug(f"Converting tool_call to function_call: {function_data}")
 
@@ -75,6 +75,8 @@ def convert_to_gigachat_messages(openai_messages):
 
                 logger.debug(f"Converted tool_call to function_call: {gigachat_message.function_call}")
 
+        if role == MessagesRole.FUNCTION:
+            gigachat_message.content = json.dumps({"result": msg.get('content')}, ensure_ascii=False)
         # For function/tool messages, add the name if present
         if role == MessagesRole.FUNCTION and 'name' in msg:
             gigachat_message.name = msg.get('name')
