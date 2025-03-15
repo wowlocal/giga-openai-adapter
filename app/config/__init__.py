@@ -5,11 +5,49 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# ANSI color codes
+class ColorFormatter(logging.Formatter):
+    """
+    Custom formatter to add colors to log messages based on their level.
+    """
+    # ANSI color codes
+    COLORS = {
+        'DEBUG': '\033[94m',  # Blue
+        'INFO': '\033[92m',   # Green
+        'WARNING': '\033[93m', # Yellow
+        'ERROR': '\033[91m',  # Red
+        'CRITICAL': '\033[91m\033[1m',  # Bold Red
+        'RESET': '\033[0m'    # Reset
+    }
+
+    def format(self, record):
+        # Save the original format
+        format_orig = self._style._fmt
+
+        # Add color based on the log level
+        if record.levelname in self.COLORS:
+            self._style._fmt = f"{self.COLORS[record.levelname]}%(asctime)s - %(name)s - %(levelname)s - %(message)s{self.COLORS['RESET']}"
+
+        # Call the original formatter
+        result = logging.Formatter.format(self, record)
+
+        # Restore the original format
+        self._style._fmt = format_orig
+
+        return result
+
+# Configure logging - first remove any existing handlers to avoid duplicates
+logging.root.handlers = []
+
+# Create and configure the handler with our color formatter
+handler = logging.StreamHandler()
+handler.setFormatter(ColorFormatter(fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
+# Configure root logger
+logging.root.setLevel(logging.DEBUG)
+logging.root.addHandler(handler)
+
+# Get our module's logger
 logger = logging.getLogger(__name__)
 
 # Get master token from environment variable

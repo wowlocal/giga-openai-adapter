@@ -1,3 +1,4 @@
+# Using built-in ANSI color codes for colored logging
 ace_tools==0.0
 aiohappyeyeballs==2.4.6
 aiohttp==3.11.12

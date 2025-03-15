@@ -10,6 +10,9 @@ def validate_finish_reason(finish_reason):
     Validate that finish_reason is one of the expected values.
     Expected values are: "stop", "length", "tool_calls", "content_filter", or None.
     Logs a warning if the finish_reason is unexpected.
+
+    Note: Warnings are displayed in yellow in the console due to the colored logging
+    configuration in app/config/__init__.py.
     """
     expected_values = ["stop", "length", "tool_calls", "content_filter", None]
     if finish_reason not in expected_values:
