@@ -49,3 +49,79 @@ This project provides a Flask-based API proxy for GigaChat that implements an Op
 You can start the Flask application using one of the following methods:
 
 ### Using run.py script
+```
+python run.py
+```
+
+### Using Docker
+
+The application can be run using Docker, which simplifies deployment and ensures consistent environments.
+
+#### Prerequisites
+- Docker and Docker Compose installed on your system
+
+#### Building and Running with Docker Compose
+
+1. Make sure you have created the `.env` file with your GigaChat API credentials as described in the Setup section.
+
+2. Build and start the Docker container:
+   ```
+   docker-compose up -d
+   ```
+
+3. To view logs:
+   ```
+   docker-compose logs -f
+   ```
+
+4. To stop the container:
+   ```
+   docker-compose down
+   ```
+
+#### Using the Docker Helper Script
+
+A helper script `docker.sh` is provided to simplify Docker operations:
+
+1. Make the script executable (if not already):
+   ```
+   chmod +x docker.sh
+   ```
+
+2. Use the script with various commands:
+   ```
+   ./docker.sh build    # Build the Docker image
+   ./docker.sh start    # Start the container
+   ./docker.sh stop     # Stop the container
+   ./docker.sh restart  # Restart the container
+   ./docker.sh logs     # View container logs
+   ./docker.sh shell    # Open a shell in the running container
+   ./docker.sh clean    # Remove container and image
+   ./docker.sh help     # Show help message
+   ```
+
+#### Building and Running with Docker (without Docker Compose)
+
+1. Build the Docker image:
+   ```
+   docker build -t gigachat-proxy .
+   ```
+
+2. Run the container:
+   ```
+   docker run -d -p 3001:3001 --env-file .env --name gigachat-proxy gigachat-proxy
+   ```
+
+3. To view logs:
+   ```
+   docker logs -f gigachat-proxy
+   ```
+
+4. To stop the container:
+   ```
+   docker stop gigachat-proxy
+   ```
+
+## API Usage
+
+// ... existing code ...
