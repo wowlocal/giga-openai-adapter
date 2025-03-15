@@ -5,6 +5,18 @@ from app.utils.helpers import generate_completion_id, get_current_timestamp
 from gigachat.models import Messages, MessagesRole, Function, FunctionParameters
 
 
+def validate_finish_reason(finish_reason):
+    """
+    Validate that finish_reason is one of the expected values.
+    Expected values are: "stop", "length", "tool_calls", "content_filter", or None.
+    Logs a warning if the finish_reason is unexpected.
+    """
+    expected_values = ["stop", "length", "tool_calls", "content_filter", None]
+    if finish_reason not in expected_values:
+        logger.warning(f"[PROXY] Unexpected finish_reason value: '{finish_reason}'. Expected one of: {expected_values}")
+    return finish_reason
+
+
 def convert_to_gigachat_messages(openai_messages):
     """
     Convert OpenAI message format to GigaChat message format.
@@ -149,6 +161,9 @@ def build_stream_chunk(completion_id, created_time, content, finish_reason, tool
     """
     Format a single chunk for streaming in the OpenAI-compatible format.
     """
+    # Validate finish_reason
+    finish_reason = validate_finish_reason(finish_reason)
+
     chunk = {
         "id": completion_id,
         "object": "chat.completion.chunk",
@@ -205,6 +220,9 @@ def build_non_stream_json(response):
 
         finish_reason = getattr(choice, 'finish_reason', "stop") if not tool_calls else "tool_calls"
 
+    # Validate finish_reason
+    finish_reason = validate_finish_reason(finish_reason)
+
     usage_data = {
         "prompt_tokens": getattr(response.usage, 'prompt_tokens', 0) if hasattr(response, 'usage') else 0,
         "completion_tokens": getattr(response.usage, 'completion_tokens', 0) if hasattr(response, 'usage') else 0,
@@ -259,6 +277,10 @@ def parse_chunk_fields(chunk):
                 # Only use the choice's finish_reason if we don't have tool_calls
                 if not tool_calls:
                     finish_reason = choice.finish_reason
+
+    # Validate finish_reason
+    finish_reason = validate_finish_reason(finish_reason)
+
     return content, finish_reason, tool_calls
 
 
