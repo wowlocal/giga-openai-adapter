@@ -74,6 +74,7 @@ def chat_completions():
             status=500
         )
 
+DEBUG_STREAM_DELAY = 0.6
 
 def stream_response(request_data):
     """
@@ -130,9 +131,14 @@ def stream_response(request_data):
             chunks = loop.run_until_complete(process_stream())
             loop.close()
 
-            # Yield all collected chunks
+            # Yield all collected chunks with a delay between them
+            import time
             for chunk in chunks:
                 yield chunk
+                # Add a small delay between chunks to control streaming rate if DEBUG_STREAM_DELAY is enabled
+                if DEBUG_STREAM_DELAY > 0:
+                    time.sleep(DEBUG_STREAM_DELAY)
+                    logger.debug(f"Sent chunk with delay of {DEBUG_STREAM_DELAY}s")
 
             # Send the final [DONE] message
             yield "data: [DONE]\n\n"
