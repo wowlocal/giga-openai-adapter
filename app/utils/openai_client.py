@@ -10,14 +10,15 @@ def create_gigachat_client():
         # Get a valid token
         token = token_manager.get_valid_token()
 
-        key = os.getenv("MASTER_TOKEN")
+        # key = os.getenv("MASTER_TOKEN")
 
         # Get the combined certificate path
         cert_path = create_combined_cert_bundle()
 
         # Initialize GigaChat client
         client = GigaChat(
-            credentials=key,
+            # credentials=key,
+            access_token=token,
             ca_bundle_file=cert_path,
             base_url=GIGACHAT_API_V1_URL,
             verify_ssl_certs=False  # Disable SSL verification for compatibility

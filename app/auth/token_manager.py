@@ -15,6 +15,11 @@ class TokenManager:
 
     def get_valid_token(self):
         """Get a valid token, refreshing if necessary"""
+        if self.access_token:
+            token_preview = self.access_token[:5] + "..."
+            logger.info(f"Getting valid token, access_token: {token_preview}, expires_at: {self.expires_at}")
+        else:
+            logger.info(f"Getting valid token, access_token: None")
         if not self.access_token or not self.expires_at or time.time() * 1000 >= self.expires_at:
             logger.info("Token expired or not set, refreshing...")
             self.refresh_token()
