@@ -10,6 +10,18 @@ general_bp = Blueprint('general', __name__)
 @general_bp.route('/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'])
 def general_proxy(path):
     """General proxy endpoint that forwards any request to the GigaChat API"""
+    # Log the path and return 404
+    logger.info(f"Received request for unsupported path: {path}, method: {request.method}")
+    return jsonify({
+        "error": {
+            "message": f"Path not found: {path}",
+            "type": "not_found_error",
+            "code": "not_found_error"
+        }
+    }), 404
+def ____general_proxy(path):
+    logger.info(f"Received request for path: {path}, method: {request.method}")
+    """General proxy endpoint that forwards any request to the GigaChat API"""
     try:
         # Log the incoming request
         logger.info(f"Received request for path: {path}, method: {request.method}")
