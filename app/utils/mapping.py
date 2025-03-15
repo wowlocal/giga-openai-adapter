@@ -181,17 +181,23 @@ def build_stream_chunk(completion_id, created_time, content, finish_reason, tool
         ]
     }
 
-    # Attach content if present and not None
+    # Attach content if present (can be empty string)
+    # Note: content could be an empty string, which is different from None
+    # We should include empty strings in the response
     if content is not None:
         chunk["choices"][0]["delta"]["content"] = content
+        logger.debug(f"[PROXY] Adding content to chunk: '{content}'")
+    else:
+        logger.debug("[PROXY] Content is None, not adding to chunk")
 
     # Attach tool calls if present
     if tool_calls:
         chunk["choices"][0]["delta"]["tool_calls"] = tool_calls
         # Explicitly set content to null in the delta when tool_calls are present
-        if content is None:
-            chunk["choices"][0]["delta"]["content"] = None
+        chunk["choices"][0]["delta"]["content"] = None
+        logger.debug("[PROXY] Adding tool_calls to chunk and setting content to null")
 
+    logger.debug(f"[PROXY] Final chunk structure: {json.dumps(chunk)}")
     return chunk
 
 
@@ -262,21 +268,30 @@ def parse_chunk_fields(chunk):
     """
     Extract content, finish_reason, and tool_calls from an async chunk in the streaming response.
     """
-    content = ""
+    content = None  # Initialize as None instead of empty string
     finish_reason = None
     tool_calls = None
 
     if hasattr(chunk, 'choices') and chunk.choices:
         for choice in chunk.choices:
             if hasattr(choice, 'delta') and choice.delta:
-                if hasattr(choice.delta, 'content') and choice.delta.content:
+                if hasattr(choice.delta, 'content'):
+                    # Even if content is empty string, we should capture it
                     content = choice.delta.content
+                    logger.warning(f"[PROXY] Received content in streaming chunk: {content}")
+
+                # Handle function calls separately - don't overwrite content unless necessary
                 if hasattr(choice.delta, 'function_call'):
                     tool_calls = convert_function_call_to_tool_calls(choice.delta.function_call)
                     logger.warning(f"[PROXY] Received function call in streaming chunk: {json.dumps(tool_calls)}")
-                    finish_reason = "tool_calls"  # Set finish_reason to tool_calls when tool_calls are present
-                    content = None  # Set content to null when tool_calls are present
+                    # Only set finish_reason for tool_calls, but don't reset content to None
+                    # unless there's actually a tool call
+                    if tool_calls:
+                        finish_reason = "tool_calls"
+                        content = None  # Only set content to null if we have actual tool calls
+
             if hasattr(choice, 'finish_reason'):
+                logger.warning(f"[PROXY] Received finish_reason in streaming chunk: {choice.finish_reason}")
                 # Only use the choice's finish_reason if we don't have tool_calls
                 if not tool_calls:
                     finish_reason = choice.finish_reason
@@ -284,6 +299,7 @@ def parse_chunk_fields(chunk):
     # Validate finish_reason
     finish_reason = validate_finish_reason(finish_reason)
 
+    logger.debug(f"[PROXY] Extracted from chunk - content: {content}, finish_reason: {finish_reason}, tool_calls: {tool_calls}")
     return content, finish_reason, tool_calls
 
 

@@ -126,6 +126,7 @@ def stream_response(request_data):
                 chunks_collected = []
                 try:
                     async for chunk in client.astream(chat):
+                        logger.debug(f"[PROXY] Raw chunk from GigaChat: {chunk}")
                         content, finish_reason, tool_calls = parse_chunk_fields(chunk)
                         formatted_chunk = build_stream_chunk(
                             completion_id,
@@ -134,6 +135,7 @@ def stream_response(request_data):
                             finish_reason,
                             tool_calls
                         )
+                        logger.debug(f"[PROXY] Formatted chunk: {formatted_chunk}")
                         chunks_collected.append(f"data: {json.dumps(formatted_chunk)}\n\n")
                 finally:
                     await client.aclose()
