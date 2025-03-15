@@ -1,0 +1,28 @@
+{
+  "choices": [
+    {
+      "finish_reason": "function_call",
+      "index": 0,
+      "message": {
+        "content": "```javascript\nconsole.log(\"hello\");\n```",
+        "function_call": {
+          "arguments": {
+            "code": "console.log(\"hello\")"
+          },
+          "name": "evaluate_javascript_code"
+        },
+        "functions_state_id": "f9bc5841-cb50-486f-9ca0-e1bff8b9781c",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1742027895,
+  "model": "GigaChat:1.0.26.20",
+  "object": "chat.completion",
+  "usage": {
+    "completion_tokens": 44,
+    "precached_prompt_tokens": 0,
+    "prompt_tokens": 183,
+    "total_tokens": 227
+  }
+}

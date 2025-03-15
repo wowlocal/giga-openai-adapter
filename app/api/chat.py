@@ -232,13 +232,16 @@ def build_stream_chunk(completion_id, created_time, content, finish_reason, tool
         ]
     }
 
-    # Attach content if present
-    if content:
+    # Attach content if present and not None
+    if content is not None:
         chunk["choices"][0]["delta"]["content"] = content
 
     # Attach tool calls if present
     if tool_calls:
         chunk["choices"][0]["delta"]["tool_calls"] = tool_calls
+        # Explicitly set content to null in the delta when tool_calls are present
+        if content is None:
+            chunk["choices"][0]["delta"]["content"] = None
 
     return chunk
 
@@ -266,8 +269,10 @@ def build_non_stream_json(response):
                 tool_calls = convert_function_call_to_tool_calls(message.function_call)
                 if tool_calls:
                     logger.warning(f"[PROXY] Received function call in response: {json.dumps(tool_calls)}")
+                    finish_reason = "tool_calls"  # Set finish_reason to tool_calls when tool_calls are present
+                    assistant_content = None  # Set content to null when tool_calls are present
 
-        finish_reason = getattr(choice, 'finish_reason', "stop")
+        finish_reason = getattr(choice, 'finish_reason', "stop") if not tool_calls else "tool_calls"
 
     usage_data = {
         "prompt_tokens": getattr(response.usage, 'prompt_tokens', 0) if hasattr(response, 'usage') else 0,
@@ -317,8 +322,12 @@ def parse_chunk_fields(chunk):
                 if hasattr(choice.delta, 'function_call'):
                     tool_calls = convert_function_call_to_tool_calls(choice.delta.function_call)
                     logger.warning(f"[PROXY] Received function call in streaming chunk: {json.dumps(tool_calls)}")
+                    finish_reason = "tool_calls"  # Set finish_reason to tool_calls when tool_calls are present
+                    content = None  # Set content to null when tool_calls are present
             if hasattr(choice, 'finish_reason'):
-                finish_reason = choice.finish_reason
+                # Only use the choice's finish_reason if we don't have tool_calls
+                if not tool_calls:
+                    finish_reason = choice.finish_reason
     return content, finish_reason, tool_calls
 
 
@@ -383,14 +392,47 @@ def convert_function_call_to_tool_calls(function_call):
     if not function_call:
         return None
 
+    # Generate an ID with "call_" prefix to match OpenAI format
+    call_id = f"call_{generate_completion_id()}"
+
+    # Get the arguments and ensure they're properly formatted as a JSON string
+    arguments = getattr(function_call, 'arguments', "{}")
+
+    # Log the original arguments for debugging
+    logger.debug(f"Original function call arguments: {arguments} (type: {type(arguments)})")
+
+    # If arguments is already a string, use it directly
+    # If it's a dict or other object, convert it to a JSON string
+    if not isinstance(arguments, str):
+        try:
+            arguments = json.dumps(arguments)
+            logger.debug(f"Converted arguments to JSON string: {arguments}")
+        except Exception as e:
+            logger.error(f"Error converting function call arguments to JSON: {str(e)}")
+            arguments = "{}"
+
+    # Ensure the arguments are properly escaped if they're not already
+    if isinstance(arguments, str) and not arguments.startswith('"'):
+        # This means it's not a JSON string yet (it's a raw string)
+        try:
+            # Parse it first to ensure it's valid JSON
+            parsed = json.loads(arguments)
+            # Then re-encode it to ensure proper escaping
+            arguments = json.dumps(parsed)
+            logger.debug(f"Re-encoded arguments for proper escaping: {arguments}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Arguments string is not valid JSON, using as is: {str(e)}")
+
     tool_call = {
-        "id": generate_completion_id(),
+        "id": call_id,
         "type": "function",
         "function": {
             "name": getattr(function_call, 'name', ""),
-            "arguments": getattr(function_call, 'arguments', "{}")
+            "arguments": arguments
         }
     }
+
+    logger.debug(f"Final tool call: {json.dumps(tool_call)}")
     return [tool_call]
 
 
