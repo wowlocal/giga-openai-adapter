@@ -30,6 +30,8 @@ search_fn = Function(
     ),
 )
 
+search = search_fn
+
 # Define a calculator function
 calculator_fn = Function(
     name="calculator",
@@ -185,64 +187,37 @@ async def test_multiple_functions():
         verify_ssl_certs=False,
         ca_bundle_file=custom_cert_path if os.path.exists(custom_cert_path) else None
     ) as giga:
-        chat = Chat(
-            messages=[
-                Messages(
-                    role=MessagesRole.SYSTEM,
-                    content="Ты - умный ИИ ассистент, который всегда готов помочь пользователю.",
-                ),
-                Messages(
-                    role=MessagesRole.USER,
-                    content="Сколько будет 234 * 456?",
-                ),
-            ],
-            functions=[search_fn, calculator_fn],
-        )
+        messages = []
+        function_called = False
+        while True:
+            # Если предыдущий ответ LLM не был вызовом функции - просим пользователя продолжить диалог
+            if not function_called:
+                query = input("\033[92mUser: \033[0m")
+                messages.append(Messages(role=MessagesRole.USER, content=query))
 
-        try:
-            response = await giga.achat(chat)
+            chat = Chat(messages=messages, functions=[search])
 
-            # Check if function call is present
-            if hasattr(response.choices[0].message, 'function_call'):
-                function_call = response.choices[0].message.function_call
-                print(f"Function called: {function_call.name}")
-                print(f"Arguments: {function_call.arguments}")
+            resp = giga.chat(chat).choices[0]
+            mess = resp.message
+            messages.append(mess)
 
-                # Simulate calculator function
-                if function_call.name == "calculator":
-                    try:
-                        args = json.loads(function_call.arguments)
-                        expression = args.get("expression", "")
-                        try:
-                            result = str(eval(expression))
-                        except:
-                            result = "Ошибка вычисления"
+            print("\033[93m" + f"Bot: \033[0m{mess.content}")
 
-                        # Continue the conversation with function results
-                        chat.messages.append(Messages(
-                            role=MessagesRole.ASSISTANT,
-                            content=None,
-                            function_call=FunctionCall(
-                                name=function_call.name,
-                                arguments=function_call.arguments
-                            )
-                        ))
+            function_called = False
+            func_result = ""
+            if resp.finish_reason == "function_call":
+                print("\033[90m" + f"  >> Processing function call {mess.function_call}" + "\033[0m")
+                if mess.function_call.name == "duckduckgo_search":
+                    query = mess.function_call.arguments.get("query", None)
+                    if query:
+                        func_result = search_ddg(query)
+                print("\033[90m" + f"  << Function result: {func_result}\n\n" + "\033[0m")
 
-                        chat.messages.append(Messages(
-                            role=MessagesRole.FUNCTION,
-                            name=function_call.name,
-                            content=result
-                        ))
-
-                        # Get the final response
-                        final_response = await giga.achat(chat)
-                        print(f"\nFinal response: {final_response.choices[0].message.content}")
-                    except json.JSONDecodeError:
-                        print(f"Error parsing function arguments: {function_call.arguments}")
-            else:
-                print(f"No function call, direct response: {response.choices[0].message.content}")
-        except Exception as e:
-            print(f"Error in multiple functions: {str(e)}")
+                messages.append(
+                    Messages(role=MessagesRole.FUNCTION,
+                            content=json.dumps({"result": func_result}, ensure_ascii=False))
+                )
+                function_called = True
 
 async def test_embeddings():
     """Test embeddings functionality"""
