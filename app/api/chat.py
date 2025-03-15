@@ -74,7 +74,7 @@ def chat_completions():
             status=500
         )
 
-DEBUG_STREAM_DELAY = 0.6
+DEBUG_STREAM_DELAY = 0.0
 
 def stream_response(request_data):
     """
