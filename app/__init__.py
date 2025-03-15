@@ -21,4 +21,12 @@ def create_app():
     from app.utils.error_handlers import register_error_handlers
     register_error_handlers(app)
 
+    # Apply CORS protection
+    from app.utils.cors import apply_cors
+    apply_cors(app)
+
+    # Apply SSL redirection
+    from app.utils.ssl_redirect import init_ssl_redirect
+    init_ssl_redirect(app)
+
     return app

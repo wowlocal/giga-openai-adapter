@@ -19,12 +19,18 @@ from app.utils.mapping import (
     convert_to_gigachat_functions
 )
 from gigachat.models import Chat
+from app.auth import require_api_key
+from app.utils.rate_limiter import rate_limit
+from app.utils.validators import validate_chat_request
 
 # Create a blueprint for the chat API
 chat_bp = Blueprint('chat', __name__)
 
 
 @chat_bp.route('/v1/chat/completions', methods=['POST'])
+@require_api_key
+@rate_limit
+@validate_chat_request
 def chat_completions():
     """
     Handle chat completions requests.
