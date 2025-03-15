@@ -38,10 +38,47 @@ def convert_to_gigachat_messages(openai_messages):
         else:
             role = MessagesRole.USER  # Default to user for unknown roles
 
+        # Create the base message with content
         gigachat_message = Messages(
             role=role,
             content=msg.get('content', '')
         )
+
+        # Handle tool_calls for assistant messages
+        if role == MessagesRole.ASSISTANT and 'tool_calls' in msg and msg['tool_calls']:
+            # Get the first tool call (GigaChat only supports one function call at a time)
+            tool_call = msg['tool_calls'][0]
+            if tool_call.get('type') == 'function':
+                function_data = tool_call.get('function', {})
+
+                # Set content to None when there's a function call
+                gigachat_message.content = None
+
+                logger.debug(f"Converting tool_call to function_call: {function_data}")
+
+                # Get arguments and parse them if they're a JSON string
+                arguments = function_data.get('arguments', '{}')
+                if isinstance(arguments, str):
+                    try:
+                        arguments = json.loads(arguments)
+                        logger.debug(f"Parsed arguments from JSON string: {arguments}")
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Failed to parse arguments as JSON: {e}. Using empty dict.")
+                        arguments = {}
+
+                # Create a FunctionCall object
+                from gigachat.models import FunctionCall
+                gigachat_message.function_call = FunctionCall(
+                    name=function_data.get('name', ''),
+                    arguments=arguments
+                )
+
+                logger.debug(f"Converted tool_call to function_call: {gigachat_message.function_call}")
+
+        # For function/tool messages, add the name if present
+        if role == MessagesRole.FUNCTION and 'name' in msg:
+            gigachat_message.name = msg.get('name')
+
         gigachat_messages.append(gigachat_message)
 
     return gigachat_messages
