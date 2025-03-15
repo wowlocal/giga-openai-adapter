@@ -18,6 +18,9 @@ orjson==3.10.15
 # Logging and formatting
 rich==13.9.4
 
+# Production server
+gunicorn==21.2.0
+
 # Optional dependencies (remove if not used)
 # openai==1.3.0  # Uncomment if you're using OpenAI API
 # langchain==0.3.18  # Uncomment if you're using LangChain

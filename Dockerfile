@@ -24,6 +24,7 @@ COPY .env .
 # Copy application code
 COPY app/ app/
 COPY run.py .
+COPY run.sh .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -33,5 +34,5 @@ ENV FLASK_ENV=production
 # Expose the port the app runs on
 EXPOSE 3001
 
-# Command to run the application
-CMD ["python", "run.py"]
+# Command to run the application with Gunicorn
+CMD ["./run.sh"]

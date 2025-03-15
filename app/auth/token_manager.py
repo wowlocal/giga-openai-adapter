@@ -39,6 +39,9 @@ class TokenManager:
                 'Authorization': auth_string
             }
 
+            # log headers
+            # logger.info(f"Request headers: {headers}")
+
             # Prepare data
             data = {
                 'scope': 'GIGACHAT_API_PERS'
