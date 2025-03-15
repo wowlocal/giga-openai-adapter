@@ -124,4 +124,13 @@ A helper script `docker.sh` is provided to simplify Docker operations:
 
 ## API Usage
 
-// ... existing code ...
+Health check endpoint:
+```
+curl http://localhost:3001/health
+```
+
+When started check if the token is valid:
+```
+curl http://localhost:3001/v1/models
+```
+
