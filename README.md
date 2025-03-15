@@ -12,6 +12,7 @@ This project provides a Flask-based API proxy for GigaChat that implements an Op
 - Embeddings API support
 - Models endpoint for compatibility
 - Health check endpoint
+- Configurable logging via environment variables
 
 ## Requirements
 
@@ -27,9 +28,15 @@ This project provides a Flask-based API proxy for GigaChat that implements an Op
    ```
    pip install -r requirements.txt
    ```
-3. Create a `.env` file with your GigaChat API credentials:
+3. Create a `.env` file with your GigaChat API credentials and optional logging configuration:
    ```
+   # Required
    MASTER_TOKEN=your_gigachat_api_key
+
+   # Optional logging configuration
+   LOG_LEVEL=INFO           # Options: DEBUG, INFO, WARNING, ERROR, CRITICAL (default: DEBUG)
+   LOG_USE_COLOR=true       # Options: true, false (default: true)
+   LOG_FORMAT=%(asctime)s - %(name)s - %(levelname)s - %(message)s  # Custom log format
    ```
    The proxy will automatically use the MASTER_TOKEN to obtain and refresh access tokens via the GigaChat OAuth API (v2/oauth)
 4. Make sure you have the required certificate files:

@@ -26,7 +26,8 @@ class ColorFormatter(logging.Formatter):
 
         # Add color based on the log level
         if record.levelname in self.COLORS:
-            self._style._fmt = f"{self.COLORS[record.levelname]}%(asctime)s - %(name)s - %(levelname)s - %(message)s{self.COLORS['RESET']}"
+            # Use the format_orig instead of hardcoding the format
+            self._style._fmt = f"{self.COLORS[record.levelname]}{format_orig}{self.COLORS['RESET']}"
 
         # Call the original formatter
         result = logging.Formatter.format(self, record)
@@ -39,16 +40,31 @@ class ColorFormatter(logging.Formatter):
 # Configure logging - first remove any existing handlers to avoid duplicates
 logging.root.handlers = []
 
-# Create and configure the handler with our color formatter
-handler = logging.StreamHandler()
-handler.setFormatter(ColorFormatter(fmt='%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+# Get logging configuration from environment variables
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'DEBUG').upper()
+USE_COLOR = os.getenv('LOG_USE_COLOR', 'true').lower() == 'true'
+LOG_FORMAT = os.getenv('LOG_FORMAT', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
-# Configure root logger
-logging.root.setLevel(logging.DEBUG)
+# Create and configure the handler
+handler = logging.StreamHandler()
+
+# Choose the appropriate formatter based on USE_COLOR env var
+if USE_COLOR:
+    handler.setFormatter(ColorFormatter(fmt=LOG_FORMAT))
+else:
+    handler.setFormatter(logging.Formatter(fmt=LOG_FORMAT))
+
+# Configure root logger with level from environment
+log_level_value = getattr(logging, LOG_LEVEL, logging.DEBUG)
+logging.root.setLevel(log_level_value)
 logging.root.addHandler(handler)
 
 # Get our module's logger
 logger = logging.getLogger(__name__)
+logger.info(f"Logging configured with level: {LOG_LEVEL}, color: {USE_COLOR}")
+
+# log logger configuration
+logger.critical(f"Logging configuration details - LOG_LEVEL: {LOG_LEVEL}, USE_COLOR: {USE_COLOR}, LOG_FORMAT: '{LOG_FORMAT}'")
 
 # Get master token from environment variable
 MASTER_TOKEN = os.getenv('MASTER_TOKEN')
