@@ -344,6 +344,8 @@ def convert_to_gigachat_messages(openai_messages):
             role = MessagesRole.ASSISTANT
         elif role == 'SYSTEM':
             role = MessagesRole.SYSTEM
+        elif role == 'TOOL':
+            role = MessagesRole.FUNCTION
         else:
             role = MessagesRole.USER  # Default to user for unknown roles
 
