@@ -46,15 +46,17 @@ def convert_to_gigachat_messages(openai_messages):
 
         # Handle tool_calls for assistant messages
         if role == MessagesRole.ASSISTANT and 'tool_calls' in msg and msg['tool_calls']:
-            # Get the first tool call (GigaChat only supports one function call at a time)
+            # GigaChat only supports one function call at a time, so we use the first one
+            # even if OpenAI format allows multiple tool calls
             tool_call = msg['tool_calls'][0]
             if tool_call.get('type') == 'function':
                 function_data = tool_call.get('function', {})
 
-                # Set content to None when there's a function call
+                # Set content to empty string when there's a function call
                 gigachat_message.content = ""
 
                 logger.debug(f"Converting tool_call to function_call: {function_data}")
+                logger.warning(f"Note: Multiple tool calls were present but only using the first one as GigaChat only supports one function call at a time")
 
                 # Get arguments and parse them if they're a JSON string
                 arguments = function_data.get('arguments', '{}')
@@ -74,6 +76,8 @@ def convert_to_gigachat_messages(openai_messages):
                 )
 
                 logger.debug(f"Converted tool_call to function_call: {gigachat_message.function_call}")
+                if len(msg['tool_calls']) > 1:
+                    logger.warning(f"Ignored {len(msg['tool_calls']) - 1} additional tool calls as GigaChat only supports one function call")
 
         if role == MessagesRole.FUNCTION:
             gigachat_message.content = json.dumps({"result": msg.get('content')}, ensure_ascii=False)
