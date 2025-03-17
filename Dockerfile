@@ -35,4 +35,4 @@ ENV FLASK_ENV=production
 EXPOSE 3001
 
 # Command to run the application with Gunicorn
-CMD ["./run.sh"]
+CMD ["./run.sh", "prod"]
